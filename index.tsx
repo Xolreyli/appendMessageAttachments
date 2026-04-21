@@ -1,52 +1,42 @@
 /*
  * Vencord, a Discord client mod
+ * Copyright (c) 2026 Xolreyli
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import definePlugin from "@utils/types";
 import { NavContextMenuPatchCallback } from "@api/ContextMenu";
+import definePlugin from "@utils/types";
+import type { Message, MessageAttachment } from "@vencord/discord-types";
 import { findByPropsLazy } from "@webpack";
 import { Constants, Menu, RestAPI, showToast, Toasts } from "@webpack/common";
 
-const UserStore = findByPropsLazy("getCurrentUser");
-
-type DiscordAttachment = {
-    id: string;
-    filename?: string;
-    description?: string | null;
+const UserStore = findByPropsLazy("getCurrentUser") as {
+    getCurrentUser?: () => { id?: string } | null;
 };
 
-type DiscordUser = {
-    id?: string;
-    username?: string;
-};
+interface MessageContextProps {
+    message?: Message;
+}
 
-type DiscordMessage = {
-    id: string;
-    channel_id: string;
-    author?: DiscordUser;
-    attachments?: DiscordAttachment[];
-};
-
-let pendingPasteTarget: DiscordMessage | null = null;
+let pendingPasteTarget: Message | null = null;
 let pendingPasteTimer: number | null = null;
 
 function getCurrentUserId(): string | null {
     return UserStore?.getCurrentUser?.()?.id ?? null;
 }
 
-function isOwnMessage(message?: DiscordMessage | null): boolean {
+function isOwnMessage(message?: Message | null): boolean {
     const me = getCurrentUserId();
     return !!message?.author?.id && !!me && message.author.id === me;
 }
 
-function isProbablyEditable(message?: DiscordMessage | null): boolean {
+function isProbablyEditable(message?: Message | null): boolean {
     if (!message?.id || !message?.channel_id) return false;
     if (!isOwnMessage(message)) return false;
     return true;
 }
 
-function buildRetainedAttachments(existing?: DiscordAttachment[]) {
+function buildRetainedAttachments(existing?: MessageAttachment[]) {
     return (existing ?? []).map(att => ({
         id: att.id,
         filename: att.filename,
@@ -54,7 +44,7 @@ function buildRetainedAttachments(existing?: DiscordAttachment[]) {
     }));
 }
 
-async function appendFilesToMessage(message: DiscordMessage, newFiles: File[]) {
+async function appendFilesToMessage(message: Message, newFiles: File[]) {
     if (!isProbablyEditable(message)) {
         showToast("That message cannot be edited.", Toasts.Type.FAILURE);
         return;
@@ -181,7 +171,7 @@ function clearPendingPasteTarget() {
     }
 }
 
-function armPendingPasteTarget(message: DiscordMessage) {
+function armPendingPasteTarget(message: Message) {
     clearPendingPasteTarget();
     pendingPasteTarget = message;
 
@@ -193,7 +183,7 @@ function armPendingPasteTarget(message: DiscordMessage) {
     }, 15000);
 }
 
-async function handleAppendPickedFiles(message: DiscordMessage) {
+async function handleAppendPickedFiles(message: Message) {
     const files = await pickFiles();
     if (!files.length) return;
     await appendFilesToMessage(message, files);
@@ -217,8 +207,8 @@ async function handlePendingPaste(e: ClipboardEvent) {
     await appendFilesToMessage(message, files);
 }
 
-const MessageContext: NavContextMenuPatchCallback = (children, props: any) => {
-    const message = props?.message as DiscordMessage | undefined;
+const MessageContext: NavContextMenuPatchCallback = (children, props: MessageContextProps) => {
+    const { message } = props;
     if (!isProbablyEditable(message)) return;
 
     children.splice(-1, 0,
@@ -227,12 +217,12 @@ const MessageContext: NavContextMenuPatchCallback = (children, props: any) => {
             <Menu.MenuItem
                 id="append-message-attachments-files"
                 label="Append Files…"
-                action={() => { void handleAppendPickedFiles(message!); }}
+                action={() => void handleAppendPickedFiles(message)}
             />
             <Menu.MenuItem
                 id="append-message-attachments-paste"
                 label="Paste Next Clipboard Image/File"
-                action={() => armPendingPasteTarget(message!)}
+                action={() => armPendingPasteTarget(message)}
             />
         </Menu.MenuItem>
     );
@@ -241,7 +231,7 @@ const MessageContext: NavContextMenuPatchCallback = (children, props: any) => {
 export default definePlugin({
     name: "AppendMessageAttachments",
     description: "Append files or pasted clipboard images/files to your already-sent messages.",
-    authors: [{ name: "Michael", id: 0n }],
+    authors: [{ name: "Xolreyli", id: 0n }],
 
     contextMenus: {
         message: MessageContext
