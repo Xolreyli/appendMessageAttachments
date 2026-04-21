@@ -73,4 +73,4 @@ As a result of this, **future Discord or Vencord updates may break functionality
 
 ## License
 
-MIT License - feel free to use, modify, and share it.
+Licensed under the GNU General Public License v3.0.
